@@ -1,0 +1,266 @@
+# orquestador-cust-segmen
+#
+# Disparado manualmente (botón "Execute" en la consola). Encadena en una
+# sola ejecución los 5 pasos que hasta ahora había que correr por separado
+# a mano:
+#
+#   1) Llama a cr-registration-ingest (Cloud Run) y espera su respuesta
+#      completa. Verifica explícitamente que confirmó éxito. Este paso ya
+#      dispara en cascada, por sí solo, todo el primer tramo automático
+#      (customer-registered -> cf-enrich-and-notify -> marketing-events ->
+#      cf-forward-to-marketing-platform -> webhook #1).
+#   2) Espera (con polling y tiempo máximo) a que los clientes publicados en
+#      el paso 1 ya estén en trx_customer_notification. Sin esta espera las
+#      Scheduled Queries corrían antes de que el primer tramo terminara y
+#      solo evaluaban una parte de los clientes.
+#   3) Dispara sq_generate_synthetic_enrollment vía la API de BigQuery Data
+#      Transfer, y espera (con polling) a que termine de verdad.
+#   4) Dispara sq_evaluate_customer_segment (debe correr después del paso
+#      3), y espera (con polling) a que termine de verdad.
+#   5) Llama a cf-route-customer-decision (Cloud Function HTTP), enviándole
+#      la hora de inicio de la evaluación para que notifique solo las
+#      decisiones de esta corrida, y espera su respuesta. Este paso dispara
+#      en cascada, por sí solo, el segundo tramo automático
+#      (customer-segment-notification -> cf-notify-segment-consumer ->
+#      webhook #2).
+#
+# Los valores de configuración se leen de las Environment Variables del
+# propio Workflow (ver env.yaml en esta misma carpeta) — nada hardcodeado.
+
+poll_transfer_run:
+  params: [transfer_run_name, poll_interval_seconds]
+  steps:
+    - check_status:
+        call: googleapis.bigquerydatatransfer.v1.projects.locations.transferConfigs.runs.get
+        args:
+          name: ${transfer_run_name}
+        result: run_status
+
+    - log_status:
+        call: sys.log
+        args:
+          text: '${"Estado de " + transfer_run_name + ": " + run_status.state}'
+          severity: INFO
+
+    - evaluate_status:
+        switch:
+          - condition: ${run_status.state == "SUCCEEDED"}
+            return: ${run_status.state}
+          - condition: ${run_status.state == "FAILED" or run_status.state == "CANCELLED"}
+            next: build_failure_message
+        next: wait_before_retry
+
+    - wait_before_retry:
+        call: sys.sleep
+        args:
+          seconds: ${poll_interval_seconds}
+        next: check_status
+
+    - build_failure_message:
+        assign:
+          - error_detail: ${map.get(run_status, "errorStatus")}
+          - failure_message: '${"La Scheduled Query terminó en estado " + run_status.state + ". Detalle: " + json.encode_to_string(error_detail)}'
+
+    - raise_failure:
+        raise: ${failure_message}
+
+wait_for_enrichment:
+  params: [project_id, bq_dataset, since, expected, poll_interval_seconds, max_attempts]
+  steps:
+    - init_attempts:
+        assign:
+          - attempt: 0
+
+    - count_enriched:
+        call: googleapis.bigquery.v2.jobs.query
+        args:
+          projectId: ${project_id}
+          body:
+            useLegacySql: false
+            timeoutMs: 30000
+            query: ${"SELECT COUNT(*) AS n FROM `" + project_id + "." + bq_dataset + ".trx_customer_notification` WHERE enriched_at >= TIMESTAMP('" + since + "')"}
+        result: count_response
+
+    - read_count:
+        assign:
+          - enriched_count: ${if("rows" in count_response, int(count_response.rows[0].f[0].v), 0)}
+          - attempt: ${attempt + 1}
+
+    - log_count:
+        call: sys.log
+        args:
+          text: '${"Clientes de la corrida en trx_customer_notification: " + string(enriched_count) + " de " + string(expected) + " (intento " + string(attempt) + " de " + string(max_attempts) + ")"}'
+          severity: INFO
+
+    - evaluate_count:
+        switch:
+          - condition: ${enriched_count >= expected}
+            return: ${enriched_count}
+          - condition: ${attempt >= max_attempts}
+            raise: '${"Tiempo agotado esperando el enriquecimiento: " + string(enriched_count) + " de " + string(expected) + " clientes en trx_customer_notification"}'
+        next: wait_before_recount
+
+    - wait_before_recount:
+        call: sys.sleep
+        args:
+          seconds: ${poll_interval_seconds}
+        next: count_enriched
+
+main:
+  params: []
+  steps:
+    - init:
+        assign:
+          - project_id: ${sys.get_env("project_id")}
+          - project_number: ${sys.get_env("project_number")}
+          - region: ${sys.get_env("region")}
+          - transfer_location: ${sys.get_env("transfer_location")}
+          - cloud_run_service_name: ${sys.get_env("cloud_run_service_name")}
+          - transfer_config_id_enrollment: ${sys.get_env("transfer_config_id_enrollment")}
+          - transfer_config_id_segment: ${sys.get_env("transfer_config_id_segment")}
+          - poll_interval_seconds: ${int(sys.get_env("poll_interval_seconds"))}
+          - bq_dataset: ${sys.get_env("bq_dataset")}
+          - enrichment_max_attempts: ${int(sys.get_env("enrichment_max_attempts"))}
+          - cf_route_customer_decision_url: ${sys.get_env("cf_route_customer_decision_url")}
+
+          - cloud_run_url: ${"https://" + cloud_run_service_name + "-" + project_number + "." + region + ".run.app"}
+          - transfer_config_enrollment_name: ${"projects/" + project_number + "/locations/" + transfer_location + "/transferConfigs/" + transfer_config_id_enrollment}
+          - transfer_config_segment_name: ${"projects/" + project_number + "/locations/" + transfer_location + "/transferConfigs/" + transfer_config_id_segment}
+
+    # -----------------------------------------------------------------
+    # Paso 1: ejecutar la Cloud Run de ingesta y esperar su respuesta completa
+    # -----------------------------------------------------------------
+    - call_registration_ingest:
+        try:
+          steps:
+            - do_call_registration_ingest:
+                call: http.post
+                args:
+                  url: ${cloud_run_url}
+                  auth:
+                    type: OIDC
+                result: ingest_response
+        except:
+          as: ingest_error
+          steps:
+            - build_ingest_error_message:
+                assign:
+                  - ingest_error_message: '${"Fallo llamando a cr-registration-ingest: " + json.encode_to_string(ingest_error)}'
+            - raise_ingest_error:
+                raise: ${ingest_error_message}
+
+    - log_ingest_result:
+        call: sys.log
+        args:
+          text: ${ingest_response.body}
+          severity: INFO
+
+    - check_ingest_status:
+        switch:
+          - condition: ${ingest_response.body.status != "success"}
+            raise: '${"cr-registration-ingest no confirmó éxito: " + json.encode_to_string(ingest_response.body)}'
+
+    # -----------------------------------------------------------------
+    # Paso 2: esperar a que los clientes publicados ya estén en BigQuery
+    # -----------------------------------------------------------------
+    - extract_ingest_info:
+        assign:
+          - published_expected: ${ingest_response.body.payload.published}
+          - ingest_started_at: ${ingest_response.body.payload.ingestion_timestamp}
+
+    - wait_enrichment:
+        call: wait_for_enrichment
+        args:
+          project_id: ${project_id}
+          bq_dataset: ${bq_dataset}
+          since: ${ingest_started_at}
+          expected: ${published_expected}
+          poll_interval_seconds: ${poll_interval_seconds}
+          max_attempts: ${enrichment_max_attempts}
+        result: enriched_count
+
+    # -----------------------------------------------------------------
+    # Paso 3: disparar sq_generate_synthetic_enrollment y esperar a que termine
+    # -----------------------------------------------------------------
+    - trigger_sq_enrollment:
+        call: googleapis.bigquerydatatransfer.v1.projects.locations.transferConfigs.startManualRuns
+        args:
+          parent: ${transfer_config_enrollment_name}
+          body:
+            requestedRunTime: ${time.format(sys.now())}
+        result: enrollment_start_response
+
+    - extract_enrollment_run_name:
+        assign:
+          - enrollment_run_name: ${enrollment_start_response.runs[0].name}
+
+    - poll_enrollment:
+        call: poll_transfer_run
+        args:
+          transfer_run_name: ${enrollment_run_name}
+          poll_interval_seconds: ${poll_interval_seconds}
+        result: enrollment_final_state
+
+    # -----------------------------------------------------------------
+    # Paso 4: disparar sq_evaluate_customer_segment y esperar a que termine
+    # -----------------------------------------------------------------
+    - mark_evaluation_start:
+        assign:
+          - evaluation_started_at: ${time.format(sys.now())}
+
+    - trigger_sq_segment:
+        call: googleapis.bigquerydatatransfer.v1.projects.locations.transferConfigs.startManualRuns
+        args:
+          parent: ${transfer_config_segment_name}
+          body:
+            requestedRunTime: ${time.format(sys.now())}
+        result: segment_start_response
+
+    - extract_segment_run_name:
+        assign:
+          - segment_run_name: ${segment_start_response.runs[0].name}
+
+    - poll_segment:
+        call: poll_transfer_run
+        args:
+          transfer_run_name: ${segment_run_name}
+          poll_interval_seconds: ${poll_interval_seconds}
+        result: segment_final_state
+
+    # -----------------------------------------------------------------
+    # Paso 5: llamar a cf-route-customer-decision y esperar su respuesta completa
+    # -----------------------------------------------------------------
+    - call_route_decision:
+        try:
+          steps:
+            - do_call_route_decision:
+                call: http.post
+                args:
+                  url: ${cf_route_customer_decision_url}
+                  body:
+                    evaluation_started_at: ${evaluation_started_at}
+                  auth:
+                    type: OIDC
+                result: route_response
+        except:
+          as: route_error
+          steps:
+            - build_route_error_message:
+                assign:
+                  - route_error_message: '${"Fallo llamando a cf-route-customer-decision: " + json.encode_to_string(route_error)}'
+            - raise_route_error:
+                raise: ${route_error_message}
+
+    - log_route_result:
+        call: sys.log
+        args:
+          text: ${route_response.body}
+          severity: INFO
+
+    - workflow_success:
+        return:
+          ingest_result: ${ingest_response.body}
+          enriched_customers: ${enriched_count}
+          enrollment_query_final_state: ${enrollment_final_state}
+          segment_query_final_state: ${segment_final_state}
+          route_result: ${route_response.body}

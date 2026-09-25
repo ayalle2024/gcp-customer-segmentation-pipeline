@@ -1,0 +1,18 @@
+[project]
+name = "cr-registration-ingest"
+version = "0.1.0"
+description = "Cloud Run service that simulates customer registrations via RandomUser.me and publishes events to Pub/Sub."
+requires-python = ">=3.11"
+dependencies = [
+    "flask>=3.0",
+    "gunicorn>=21.2",
+    "requests>=2.31",
+    "google-cloud-pubsub>=2.21",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=8.0"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]

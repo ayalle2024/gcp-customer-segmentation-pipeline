@@ -1,0 +1,258 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1320" height="1240" viewBox="0 0 1320 1240" xmlns="http://www.w3.org/2000/svg" font-family="Arial, Helvetica, sans-serif">
+  <defs>
+    <marker id="ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M1 1L9 5L1 9z" fill="#5f6368"/>
+    </marker>
+    <marker id="arBlue" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M1 1L9 5L1 9z" fill="#1A73E8"/>
+    </marker>
+    <marker id="arExt" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M1 1L9 5L1 9z" fill="#D93025"/>
+    </marker>
+  </defs>
+
+  <rect width="1320" height="1240" fill="#ffffff"/>
+
+  <!-- Title -->
+  <text x="660" y="34" text-anchor="middle" font-size="20" font-weight="bold" fill="#202124">GCP Customer Segmentation — Architecture</text>
+  <text x="660" y="58" text-anchor="middle" font-size="13" fill="#5f6368">Workflow-orchestrated, event-driven pipeline · Cloud Run + Cloud Functions + Pub/Sub + BigQuery + Firestore · least-privilege IAM</text>
+
+  <!-- ===== GCP container ===== -->
+  <rect x="250" y="88" width="810" height="960" rx="20" fill="#F8F9FA" stroke="#9AA0A6" stroke-width="1.2"/>
+  <text x="272" y="114" font-size="14" font-weight="bold" fill="#202124">Google Cloud</text>
+  <text x="372" y="114" font-size="12" fill="#5f6368">project arl-dtpr-dev-cust-segmen · us-central1 · BigQuery US</text>
+
+  <!-- ===== Workflow ===== -->
+  <rect x="280" y="125" width="730" height="120" rx="10" fill="#E8F0FE" stroke="#1A73E8" stroke-width="1.3"/>
+  <text x="300" y="150" font-size="14" font-weight="bold" fill="#174EA6">Cloud Workflows</text>
+  <text x="422" y="150" font-size="11" fill="#174EA6">orquestador-cust-segmen</text>
+  <text x="990" y="150" text-anchor="end" font-size="10" font-style="italic" fill="#5f6368">manual · Execute button</text>
+  <text x="300" y="172" font-size="11.5" fill="#202124">1. POST (OIDC) to cr-registration-ingest and assert body.status == "success"</text>
+  <text x="300" y="188" font-size="11.5" fill="#202124">2. Poll BigQuery until the published customers are in trx_customer_notification (max ~5 min)</text>
+  <text x="300" y="204" font-size="11.5" fill="#202124">3. Start sq_generate_synthetic_enrollment and poll every 10 s → SUCCEEDED</text>
+  <text x="300" y="220" font-size="11.5" fill="#202124">4. Start sq_evaluate_customer_segment and poll every 10 s → SUCCEEDED</text>
+  <text x="300" y="236" font-size="11.5" fill="#202124">5. POST (OIDC) to cf-route-customer-decision with evaluation_started_at (this run only)</text>
+
+  <!-- ===== External: RandomUser ===== -->
+  <rect x="30" y="330" width="190" height="80" rx="10" fill="#FCE8E6" stroke="#D93025" stroke-width="1.3"/>
+  <text x="125" y="358" text-anchor="middle" font-size="14" font-weight="bold" fill="#A50E0E">RandomUser.me API</text>
+  <text x="125" y="377" text-anchor="middle" font-size="11" fill="#A50E0E">Public REST API, no key</text>
+  <text x="125" y="394" text-anchor="middle" font-size="11" fill="#A50E0E">BATCH_SIZE users per run</text>
+  <line x1="220" y1="360" x2="288" y2="360" stroke="#D93025" stroke-width="1.6" marker-end="url(#arExt)"/>
+  <text x="254" y="352" text-anchor="middle" font-size="10" font-weight="bold" fill="#A50E0E">GET</text>
+
+  <!-- ===== Legend ===== -->
+  <text x="30" y="470" font-size="12" font-weight="bold" fill="#202124">Legend</text>
+  <rect x="30" y="482" width="16" height="16" rx="3" fill="#E8F0FE" stroke="#1A73E8"/>
+  <text x="54" y="495" font-size="11" fill="#3c4043">Orchestration / compute</text>
+  <rect x="30" y="506" width="16" height="16" rx="3" fill="#F3E8FD" stroke="#9334E6"/>
+  <text x="54" y="519" font-size="11" fill="#3c4043">Pub/Sub topic</text>
+  <rect x="30" y="530" width="16" height="16" rx="3" fill="#E4F7F8" stroke="#12A4AF"/>
+  <text x="54" y="543" font-size="11" fill="#3c4043">BigQuery (standard layer)</text>
+  <rect x="30" y="554" width="16" height="16" rx="3" fill="#E6F4EA" stroke="#1E8E3E"/>
+  <text x="54" y="567" font-size="11" fill="#3c4043">Firestore</text>
+  <rect x="30" y="578" width="16" height="16" rx="3" fill="#FCE8E6" stroke="#D93025"/>
+  <text x="54" y="591" font-size="11" fill="#3c4043">External interface</text>
+  <line x1="30" y1="612" x2="46" y2="612" stroke="#1A73E8" stroke-width="1.6"/>
+  <text x="54" y="616" font-size="11" fill="#3c4043">Control (trigger / poll)</text>
+  <line x1="30" y1="634" x2="46" y2="634" stroke="#5f6368" stroke-width="1.6"/>
+  <text x="54" y="638" font-size="11" fill="#3c4043">Data / event flow</text>
+  <line x1="30" y1="656" x2="46" y2="656" stroke="#5f6368" stroke-width="1.6" stroke-dasharray="4 3"/>
+  <text x="54" y="660" font-size="11" fill="#3c4043">Reads</text>
+
+  <!-- ===== Workflow control arrows ===== -->
+  <!-- step 1 -->
+  <line x1="440" y1="245" x2="440" y2="298" stroke="#1A73E8" stroke-width="1.6" marker-end="url(#arBlue)"/>
+  <circle cx="440" cy="272" r="9" fill="#1A73E8"/>
+  <text x="440" y="276" text-anchor="middle" font-size="11" font-weight="bold" fill="#ffffff">1</text>
+  <!-- control lane on the right -->
+  <path d="M1010 185 L1030 185 L1030 785" fill="none" stroke="#1A73E8" stroke-width="1.6"/>
+  <line x1="1030" y1="345" x2="982" y2="345" stroke="#1A73E8" stroke-width="1.6" marker-end="url(#arBlue)"/>
+  <circle cx="1010" cy="345" r="9" fill="#1A73E8"/>
+  <text x="1010" y="349" text-anchor="middle" font-size="11" font-weight="bold" fill="#ffffff">3</text>
+  <line x1="1030" y1="565" x2="982" y2="565" stroke="#1A73E8" stroke-width="1.6" marker-end="url(#arBlue)"/>
+  <circle cx="1010" cy="565" r="9" fill="#1A73E8"/>
+  <text x="1010" y="569" text-anchor="middle" font-size="11" font-weight="bold" fill="#ffffff">4</text>
+  <line x1="1030" y1="785" x2="982" y2="785" stroke="#1A73E8" stroke-width="1.6" marker-end="url(#arBlue)"/>
+  <circle cx="1010" cy="785" r="9" fill="#1A73E8"/>
+  <text x="1010" y="789" text-anchor="middle" font-size="11" font-weight="bold" fill="#ffffff">5</text>
+
+  <!-- ================= LEFT LANE: first automatic leg ================= -->
+  <!-- Cloud Run -->
+  <rect x="290" y="300" width="300" height="100" rx="10" fill="#E8F0FE" stroke="#1A73E8" stroke-width="1.3"/>
+  <text x="440" y="324" text-anchor="middle" font-size="14" font-weight="bold" fill="#174EA6">Cloud Run (private)</text>
+  <text x="440" y="343" text-anchor="middle" font-size="11" fill="#174EA6">cr-registration-ingest</text>
+  <text x="440" y="362" text-anchor="middle" font-size="11" fill="#202124">fetch → clean → validate → publish</text>
+  <text x="440" y="380" text-anchor="middle" font-size="10" font-style="italic" fill="#5f6368">Python 3.11 · Flask · 15 tests</text>
+
+  <line x1="440" y1="400" x2="440" y2="428" stroke="#5f6368" stroke-width="1.6" marker-end="url(#ar)"/>
+
+  <!-- Pub/Sub customer-registered -->
+  <rect x="290" y="430" width="300" height="60" rx="10" fill="#F3E8FD" stroke="#9334E6" stroke-width="1.3"/>
+  <text x="440" y="454" text-anchor="middle" font-size="13" font-weight="bold" fill="#5B1F94">Pub/Sub topic</text>
+  <text x="440" y="473" text-anchor="middle" font-size="11" fill="#5B1F94">customer-registered</text>
+
+  <line x1="440" y1="490" x2="440" y2="518" stroke="#5f6368" stroke-width="1.6" marker-end="url(#ar)"/>
+
+  <!-- cf-enrich-and-notify -->
+  <rect x="290" y="520" width="300" height="100" rx="10" fill="#E8F0FE" stroke="#1A73E8" stroke-width="1.3"/>
+  <text x="440" y="544" text-anchor="middle" font-size="14" font-weight="bold" fill="#174EA6">Cloud Function (gen2)</text>
+  <text x="440" y="563" text-anchor="middle" font-size="11" fill="#174EA6">cf-enrich-and-notify</text>
+  <text x="440" y="582" text-anchor="middle" font-size="11" fill="#202124">enrich → BigQuery → Firestore → publish</text>
+  <text x="440" y="600" text-anchor="middle" font-size="10" font-style="italic" fill="#5f6368">Pub/Sub trigger · 11 tests</text>
+
+  <!-- bus to BigQuery + Firestore -->
+  <path d="M440 620 L440 640" fill="none" stroke="#5f6368" stroke-width="1.6"/>
+  <path d="M362 640 L517 640" fill="none" stroke="#5f6368" stroke-width="1.6"/>
+  <line x1="362" y1="640" x2="362" y2="658" stroke="#5f6368" stroke-width="1.6" marker-end="url(#ar)"/>
+  <line x1="517" y1="640" x2="517" y2="658" stroke="#5f6368" stroke-width="1.6" marker-end="url(#ar)"/>
+
+  <!-- Firestore -->
+  <rect x="290" y="660" width="145" height="80" rx="10" fill="#E6F4EA" stroke="#1E8E3E" stroke-width="1.3"/>
+  <text x="362" y="684" text-anchor="middle" font-size="13" font-weight="bold" fill="#0D5323">Firestore</text>
+  <text x="362" y="703" text-anchor="middle" font-size="10" fill="#0D5323">customer_prospects</text>
+  <text x="362" y="722" text-anchor="middle" font-size="10" font-style="italic" fill="#5f6368">current state</text>
+
+  <!-- BigQuery trx_customer_notification -->
+  <rect x="445" y="660" width="145" height="80" rx="10" fill="#E4F7F8" stroke="#12A4AF" stroke-width="1.3"/>
+  <text x="517" y="684" text-anchor="middle" font-size="13" font-weight="bold" fill="#0B5C63">BigQuery · std</text>
+  <text x="517" y="703" text-anchor="middle" font-size="10" fill="#0B5C63">trx_customer_notification</text>
+  <text x="517" y="722" text-anchor="middle" font-size="10" font-style="italic" fill="#5f6368">history</text>
+
+  <!-- publish path: cf-enrich -> marketing-events (left margin) -->
+  <path d="M290 575 L268 575 L268 805 L288 805" fill="none" stroke="#5f6368" stroke-width="1.6" marker-end="url(#ar)"/>
+  <text x="262" y="700" text-anchor="end" font-size="10" fill="#5f6368" transform="rotate(-90 262 700)">publishes event</text>
+
+  <!-- Pub/Sub marketing-events -->
+  <rect x="290" y="775" width="300" height="60" rx="10" fill="#F3E8FD" stroke="#9334E6" stroke-width="1.3"/>
+  <text x="440" y="799" text-anchor="middle" font-size="13" font-weight="bold" fill="#5B1F94">Pub/Sub topic</text>
+  <text x="440" y="818" text-anchor="middle" font-size="11" fill="#5B1F94">marketing-events</text>
+
+  <line x1="440" y1="835" x2="440" y2="863" stroke="#5f6368" stroke-width="1.6" marker-end="url(#ar)"/>
+
+  <!-- cf-forward-to-marketing-platform -->
+  <rect x="290" y="865" width="300" height="90" rx="10" fill="#E8F0FE" stroke="#1A73E8" stroke-width="1.3"/>
+  <text x="440" y="889" text-anchor="middle" font-size="14" font-weight="bold" fill="#174EA6">Cloud Function (gen2)</text>
+  <text x="440" y="908" text-anchor="middle" font-size="11" fill="#174EA6">cf-forward-to-marketing-platform</text>
+  <text x="440" y="927" text-anchor="middle" font-size="11" fill="#202124">POST to the marketing webhook</text>
+  <text x="440" y="945" text-anchor="middle" font-size="10" font-style="italic" fill="#5f6368">Pub/Sub trigger · 9 tests</text>
+
+  <!-- Webhook 1 -->
+  <line x1="290" y1="910" x2="222" y2="910" stroke="#D93025" stroke-width="1.6" marker-end="url(#arExt)"/>
+  <text x="256" y="902" text-anchor="middle" font-size="10" font-weight="bold" fill="#A50E0E">POST</text>
+  <rect x="30" y="865" width="190" height="90" rx="10" fill="#FCE8E6" stroke="#D93025" stroke-width="1.3"/>
+  <text x="125" y="892" text-anchor="middle" font-size="13" font-weight="bold" fill="#A50E0E">Marketing platform</text>
+  <text x="125" y="911" text-anchor="middle" font-size="11" fill="#A50E0E">simulated · webhook.site #1</text>
+  <text x="125" y="930" text-anchor="middle" font-size="10" font-style="italic" fill="#A50E0E">50-request cap per URL</text>
+
+  <!-- ================= RIGHT LANE: segmentation engine + second leg ================= -->
+  <!-- reads trunk from trx_customer_notification -->
+  <path d="M590 700 L640 700 L640 345 L688 345" fill="none" stroke="#5f6368" stroke-width="1.6" stroke-dasharray="4 3" marker-end="url(#ar)"/>
+  <path d="M640 565 L688 565" fill="none" stroke="#5f6368" stroke-width="1.6" stroke-dasharray="4 3" marker-end="url(#ar)"/>
+  <text x="646" y="470" font-size="10" fill="#5f6368">reads</text>
+
+  <!-- SQ enrollment -->
+  <rect x="690" y="300" width="290" height="90" rx="10" fill="#E8F0FE" stroke="#1A73E8" stroke-width="1.3"/>
+  <text x="835" y="324" text-anchor="middle" font-size="13" font-weight="bold" fill="#174EA6">BigQuery Scheduled Query</text>
+  <text x="835" y="343" text-anchor="middle" font-size="10.5" fill="#174EA6">sq_generate_synthetic_enrollment</text>
+  <text x="835" y="360" text-anchor="middle" font-size="10.5" fill="#202124">on-demand · hash-based synthetic data</text>
+  <text x="835" y="376" text-anchor="middle" font-size="10" font-style="italic" fill="#5f6368">idempotent (LEFT JOIN … IS NULL)</text>
+
+  <line x1="835" y1="390" x2="835" y2="418" stroke="#5f6368" stroke-width="1.6" marker-end="url(#ar)"/>
+
+  <!-- ori_mtr_program_enrollment -->
+  <rect x="690" y="420" width="290" height="70" rx="10" fill="#E4F7F8" stroke="#12A4AF" stroke-width="1.3"/>
+  <text x="835" y="444" text-anchor="middle" font-size="13" font-weight="bold" fill="#0B5C63">BigQuery · std (master)</text>
+  <text x="835" y="463" text-anchor="middle" font-size="10.5" fill="#0B5C63">ori_mtr_program_enrollment</text>
+  <text x="835" y="480" text-anchor="middle" font-size="10" font-style="italic" fill="#5f6368">~40 % enrolled · ~30 % premium</text>
+
+  <line x1="835" y1="490" x2="835" y2="518" stroke="#5f6368" stroke-width="1.6" stroke-dasharray="4 3" marker-end="url(#ar)"/>
+
+  <!-- SQ evaluate -->
+  <rect x="690" y="520" width="290" height="90" rx="10" fill="#E8F0FE" stroke="#1A73E8" stroke-width="1.3"/>
+  <text x="835" y="544" text-anchor="middle" font-size="13" font-weight="bold" fill="#174EA6">BigQuery Scheduled Query</text>
+  <text x="835" y="563" text-anchor="middle" font-size="10.5" fill="#174EA6">sq_evaluate_customer_segment</text>
+  <text x="835" y="580" text-anchor="middle" font-size="10.5" fill="#202124">on-demand · MERGE · business rule</text>
+  <text x="835" y="596" text-anchor="middle" font-size="10" font-style="italic" fill="#5f6368">enrolled AND premium → special_program</text>
+
+  <line x1="835" y1="610" x2="835" y2="638" stroke="#5f6368" stroke-width="1.6" marker-end="url(#ar)"/>
+
+  <!-- trx_customer_segment_decision -->
+  <rect x="690" y="640" width="290" height="70" rx="10" fill="#E4F7F8" stroke="#12A4AF" stroke-width="1.3"/>
+  <text x="835" y="664" text-anchor="middle" font-size="13" font-weight="bold" fill="#0B5C63">BigQuery · std</text>
+  <text x="835" y="683" text-anchor="middle" font-size="10.5" fill="#0B5C63">trx_customer_segment_decision</text>
+  <text x="835" y="700" text-anchor="middle" font-size="10" font-style="italic" fill="#5f6368">special_program / marketing_only</text>
+
+  <line x1="835" y1="710" x2="835" y2="738" stroke="#5f6368" stroke-width="1.6" stroke-dasharray="4 3" marker-end="url(#ar)"/>
+
+  <!-- cf-route-customer-decision -->
+  <rect x="690" y="740" width="290" height="90" rx="10" fill="#E8F0FE" stroke="#1A73E8" stroke-width="1.3"/>
+  <text x="835" y="764" text-anchor="middle" font-size="14" font-weight="bold" fill="#174EA6">Cloud Function (gen2, HTTP)</text>
+  <text x="835" y="783" text-anchor="middle" font-size="11" fill="#174EA6">cf-route-customer-decision</text>
+  <text x="835" y="802" text-anchor="middle" font-size="11" fill="#202124">this run's special_program → publish</text>
+  <text x="835" y="820" text-anchor="middle" font-size="10" font-style="italic" fill="#5f6368">HTTP trigger · 12 tests</text>
+
+  <line x1="835" y1="830" x2="835" y2="858" stroke="#5f6368" stroke-width="1.6" marker-end="url(#ar)"/>
+
+  <!-- Pub/Sub customer-segment-notification -->
+  <rect x="690" y="860" width="290" height="60" rx="10" fill="#F3E8FD" stroke="#9334E6" stroke-width="1.3"/>
+  <text x="835" y="884" text-anchor="middle" font-size="13" font-weight="bold" fill="#5B1F94">Pub/Sub topic</text>
+  <text x="835" y="903" text-anchor="middle" font-size="11" fill="#5B1F94">customer-segment-notification</text>
+
+  <line x1="835" y1="920" x2="835" y2="943" stroke="#5f6368" stroke-width="1.6" marker-end="url(#ar)"/>
+
+  <!-- cf-notify-segment-consumer -->
+  <rect x="690" y="945" width="290" height="80" rx="10" fill="#E8F0FE" stroke="#1A73E8" stroke-width="1.3"/>
+  <text x="835" y="969" text-anchor="middle" font-size="14" font-weight="bold" fill="#174EA6">Cloud Function (gen2)</text>
+  <text x="835" y="988" text-anchor="middle" font-size="11" fill="#174EA6">cf-notify-segment-consumer</text>
+  <text x="835" y="1006" text-anchor="middle" font-size="10" font-style="italic" fill="#5f6368">Pub/Sub trigger · 9 tests</text>
+
+  <!-- Webhook 2 -->
+  <line x1="980" y1="985" x2="1088" y2="985" stroke="#D93025" stroke-width="1.6" marker-end="url(#arExt)"/>
+  <text x="1034" y="977" text-anchor="middle" font-size="10" font-weight="bold" fill="#A50E0E">POST</text>
+  <rect x="1090" y="945" width="200" height="80" rx="10" fill="#FCE8E6" stroke="#D93025" stroke-width="1.3"/>
+  <text x="1190" y="972" text-anchor="middle" font-size="13" font-weight="bold" fill="#A50E0E">Special-program system</text>
+  <text x="1190" y="991" text-anchor="middle" font-size="11" fill="#A50E0E">simulated · webhook.site #2</text>
+  <text x="1190" y="1009" text-anchor="middle" font-size="10" font-style="italic" fill="#A50E0E">50-request cap per URL</text>
+
+  <!-- ===== IAM band ===== -->
+  <text x="30" y="1080" font-size="14" font-weight="bold" fill="#202124">Runtime identities</text>
+  <text x="170" y="1080" font-size="12" fill="#5f6368">one service account per component type · least privilege · default Compute and App Engine accounts without roles</text>
+
+  <g font-size="10.5">
+    <rect x="30" y="1094" width="222" height="100" rx="8" fill="#ffffff" stroke="#9AA0A6"/>
+    <text x="42" y="1114" font-size="12" font-weight="bold" fill="#202124">Cloud Workflows</text>
+    <text x="42" y="1132" fill="#174EA6">sa-workflow-segmen</text>
+    <text x="42" y="1150" fill="#3c4043">run.invoker (2 services)</text>
+    <text x="42" y="1166" fill="#3c4043">custom role custSegmenTransferRunner</text>
+    <text x="42" y="1182" fill="#3c4043">logWriter · jobUser · dataViewer (std)</text>
+
+    <rect x="264" y="1094" width="222" height="100" rx="8" fill="#ffffff" stroke="#9AA0A6"/>
+    <text x="276" y="1114" font-size="12" font-weight="bold" fill="#202124">Cloud Run</text>
+    <text x="276" y="1132" fill="#174EA6">sa-cloudrun-segmen</text>
+    <text x="276" y="1150" fill="#3c4043">pubsub.publisher</text>
+    <text x="276" y="1166" fill="#3c4043">(customer-registered only)</text>
+
+    <rect x="498" y="1094" width="222" height="100" rx="8" fill="#ffffff" stroke="#9AA0A6"/>
+    <text x="510" y="1114" font-size="12" font-weight="bold" fill="#202124">Cloud Functions (4)</text>
+    <text x="510" y="1132" fill="#174EA6">sa-cloudfunction-segmen</text>
+    <text x="510" y="1150" fill="#3c4043">bigquery.dataEditor (std dataset)</text>
+    <text x="510" y="1166" fill="#3c4043">jobUser · datastore.user · logWriter</text>
+    <text x="510" y="1182" fill="#3c4043">pubsub.publisher · run.invoker</text>
+
+    <rect x="732" y="1094" width="222" height="100" rx="8" fill="#ffffff" stroke="#9AA0A6"/>
+    <text x="744" y="1114" font-size="12" font-weight="bold" fill="#202124">Scheduled Queries (2)</text>
+    <text x="744" y="1132" fill="#174EA6">sa-scheduledquery-segmen</text>
+    <text x="744" y="1150" fill="#3c4043">bigquery.jobUser</text>
+    <text x="744" y="1166" fill="#3c4043">dataEditor (std dataset only)</text>
+
+    <rect x="966" y="1094" width="222" height="100" rx="8" fill="#ffffff" stroke="#9AA0A6"/>
+    <text x="978" y="1114" font-size="12" font-weight="bold" fill="#202124">Cloud Build (deploy)</text>
+    <text x="978" y="1132" fill="#174EA6">sa-cloudbuild-segmen</text>
+    <text x="978" y="1150" fill="#3c4043">run.builder</text>
+    <text x="978" y="1166" fill="#3c4043">(Cloud Run and Functions builds)</text>
+  </g>
+
+  <text x="660" y="1222" text-anchor="middle" font-size="12" fill="#5f6368">2 automatic event legs triggered in cascade · $0/month on the GCP free tier · scales to zero · all config via environment variables</text>
+</svg>
